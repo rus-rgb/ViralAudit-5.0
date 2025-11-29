@@ -1,21 +1,22 @@
-import React, { useState, useEffect, useContext, createContext, useRef } from "react";
+import React, { useState, useEffect, useContext, createContext } from "react";
 import { createRoot } from "react-dom/client";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@supabase/supabase-js";
 
 // ==========================================
-// ⚙️ CONFIGURATION (FILL THESE IN)
+// ⚙️ CONFIGURATION
 // ==========================================
+// Your Cloudflare Worker URL
 const WORKER_URL = "https://damp-wind-775f.rusdumitru122.workers.dev/"; 
-const SUPABASE_URL = "https://wrlbnzuexpbtnxbitnyx.supabase.co"; 
-const SUPABASE_KEY = "sb_publishable_yxPU4bu3VtlGFmeyAKUjpQ_IcX8ZODV";
 
-// TypeScript Hack for CDN Supabase
-declare global {
-    interface Window { supabase: any; }
-}
+// Supabase Keys (Pulled from Vercel via vite.config.ts)
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_KEY = process.env.SUPABASE_KEY || "";
 
 // Initialize Supabase Client
-const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const supabase = (SUPABASE_URL && SUPABASE_KEY) 
+    ? createClient(SUPABASE_URL, SUPABASE_KEY) 
+    : null;
 
 // ==========================================
 // 🛠️ UTILS
@@ -30,7 +31,7 @@ const scrollToSection = (e: React.MouseEvent, id: string) => {
 };
 
 // ==========================================
-// 🔐 AUTH CONTEXT (REAL SUPABASE)
+// 🔐 AUTH CONTEXT
 // ==========================================
 
 type User = {
@@ -61,9 +62,12 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [authView, setAuthView] = useState<'login' | 'signup'>('signup');
 
     useEffect(() => {
-        // Check active session on load
         const checkSession = async () => {
-            if(!supabase) return;
+            if(!supabase) {
+                console.warn("Supabase not configured");
+                setIsLoading(false);
+                return;
+            }
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
                 setUser({ email: session.user.email!, id: session.user.id });
@@ -72,8 +76,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
         checkSession();
 
-        // Listen for auth changes
-        const { data: { subscription } } = supabase?.auth.onAuthStateChange((_event: any, session: any) => {
+        const { data: { subscription } } = supabase?.auth.onAuthStateChange((_event, session) => {
             if (session?.user) {
                 setUser({ email: session.user.email!, id: session.user.id });
             } else {
@@ -85,14 +88,14 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     const login = async (email: string, password: string) => {
-        if(!supabase) return { error: { message: "Supabase not configured" } };
+        if(!supabase) return { error: { message: "Supabase not configured in Vercel" } };
         const result = await supabase.auth.signInWithPassword({ email, password });
         if (!result.error) setShowAuthModal(false);
         return result;
     };
 
     const signup = async (email: string, password: string) => {
-        if(!supabase) return { error: { message: "Supabase not configured" } };
+        if(!supabase) return { error: { message: "Supabase not configured in Vercel" } };
         const result = await supabase.auth.signUp({ email, password });
         if (!result.error) setShowAuthModal(false);
         return result;
@@ -114,7 +117,6 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             authView, setAuthView, openTool
         }}>
             {children}
-            {/* Render the Floating Tool Modal here so it can access context */}
             <ViralAuditTool isOpen={showToolModal} onClose={() => setShowToolModal(false)} />
         </AuthContext.Provider>
     );
@@ -133,7 +135,6 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // Reset state when closed
     useEffect(() => { if(!isOpen) { setFile(null); setResult(null); setError(null); } }, [isOpen]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,7 +150,6 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
         setError(null);
 
         try {
-            // 1. Convert to Base64
             const toBase64 = (f: File) => new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(f);
@@ -159,15 +159,14 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
 
             const base64Data = await toBase64(file);
 
-            // 2. Send to Cloudflare Worker
             const response = await fetch(WORKER_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     base64Data: base64Data,
                     mimeType: file.type,
-                    licenseKey: user.email, // Use email as key
-                    systemPrompt: "" // Use default
+                    licenseKey: user.email, 
+                    systemPrompt: "" 
                 })
             });
 
@@ -185,7 +184,6 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
         }
     };
 
-    // Helper to format Markdown
     const formatText = (text: string) => {
         return text
             .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')
@@ -203,8 +201,6 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150]" />
                     <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="fixed inset-0 z-[151] flex items-center justify-center p-4 pointer-events-none">
                         <div className="bg-[#111] border border-[#333] w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto">
-                            
-                            {/* Header */}
                             <div className="p-5 border-b border-[#222] flex justify-between items-center bg-[#161616]">
                                 <h2 className="text-xl font-bold flex items-center gap-2">
                                     <span className="bg-gradient-to-r from-[#FF0050] to-[#00F2EA] bg-clip-text text-transparent">ViralAudit AI</span>
@@ -212,7 +208,6 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                                 <button onClick={onClose} className="text-gray-500 hover:text-white"><i className="fa-solid fa-xmark text-xl"></i></button>
                             </div>
 
-                            {/* Body */}
                             <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
                                 {!user ? (
                                     <div className="text-center py-10">
@@ -242,11 +237,10 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                                             disabled={!file || analyzing}
                                             className="w-full mt-6 bg-gradient-to-r from-[#FF0050] to-[#00F2EA] text-white font-bold py-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                         >
-                                            {analyzing ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Analyzing... (This takes ~30s)</> : "Run Deep Audit"}
+                                            {analyzing ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Analyzing...</> : "Run Deep Audit"}
                                         </button>
                                     </div>
                                 ) : (
-                                    // RESULTS VIEW
                                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
                                         <div className="flex items-center justify-between mb-4">
                                             <h3 className="text-white font-bold text-lg">Analysis Report</h3>
@@ -268,7 +262,7 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
 }
 
 // ==========================================
-// 🧩 COMPONENTS
+// 🧩 UI COMPONENTS
 // ==========================================
 
 const AuthModal = () => {
@@ -295,7 +289,6 @@ const AuthModal = () => {
         if (res.error) {
             setError(res.error.message);
         }
-        
         setLoading(false);
     };
 
@@ -377,15 +370,11 @@ const Navbar = () => {
 };
 
 const Background = () => {
-    // We define this here to prevent build errors with long strings in the return statement
     const noiseSvg = "data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E";
 
     return (
         <div className="fixed inset-0 z-0 pointer-events-none">
-            <div 
-                className="absolute inset-0 opacity-[0.03]" 
-                style={{ backgroundImage: `url("${noiseSvg}")` }}
-            ></div>
+            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("${noiseSvg}")` }}></div>
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
             <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-900/20 blur-[120px] rounded-full"></div>
             <div className="absolute top-[20%] right-[-10%] w-[600px] h-[600px] bg-blue-900/10 blur-[120px] rounded-full"></div>
@@ -497,7 +486,6 @@ const App = () => {
             <Footer />
             <FloatingActionButton />
             <AuthModal /> 
-            {/* Note: The ViralAuditTool modal is rendered inside AuthProvider to access context */}
         </div>
     </AuthProvider>
   );
