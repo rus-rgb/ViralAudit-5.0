@@ -6,14 +6,11 @@ import { createClient } from "@supabase/supabase-js";
 // ==========================================
 // ⚙️ CONFIGURATION
 // ==========================================
-// Cloudflare Worker
 const WORKER_URL = "https://damp-wind-775f.rusdumitru122.workers.dev/"; 
 
-// Supabase Keys (Pulled from Vercel via vite.config.ts)
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || "";
 
-// Initialize Supabase
 const supabase = (SUPABASE_URL && SUPABASE_KEY) 
     ? createClient(SUPABASE_URL, SUPABASE_KEY) 
     : null;
@@ -36,7 +33,7 @@ const scrollToSection = (e: React.MouseEvent, id: string) => {
 
 type User = {
     email: string;
-    id?: string;
+    id: string;
 };
 
 interface AuthContextType {
@@ -50,6 +47,7 @@ interface AuthContextType {
     authView: 'login' | 'signup';
     setAuthView: (view: 'login' | 'signup') => void;
     openTool: () => void;
+    triggerUpgrade: () => void; // New helper to scroll to pricing
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -110,11 +108,17 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setShowToolModal(true);
     };
 
+    const triggerUpgrade = () => {
+        setShowToolModal(false);
+        const pricing = document.getElementById('pricing');
+        if(pricing) pricing.scrollIntoView({ behavior: 'smooth' });
+    };
+
     return (
         <AuthContext.Provider value={{ 
             user, isLoading, login, signup, logout,
             showAuthModal, setShowAuthModal,
-            authView, setAuthView, openTool
+            authView, setAuthView, openTool, triggerUpgrade
         }}>
             {children}
             <ViralAuditTool isOpen={showToolModal} onClose={() => setShowToolModal(false)} />
@@ -129,13 +133,42 @@ const useAuth = () => useContext(AuthContext);
 // ==========================================
 
 const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
-    const { user, setShowAuthModal, setAuthView } = useAuth();
+    const { user, setShowAuthModal, setAuthView, triggerUpgrade } = useAuth();
     const [file, setFile] = useState<File | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    
+    // 🆕 Usage State
+    const [auditCount, setAuditCount] = useState<number>(0);
+    const [loadingUsage, setLoadingUsage] = useState(false);
+    const FREE_LIMIT = 3;
 
-    useEffect(() => { if(!isOpen) { setFile(null); setResult(null); setError(null); } }, [isOpen]);
+    // Load usage when tool opens
+    useEffect(() => { 
+        if(!isOpen) { 
+            setFile(null); 
+            setResult(null); 
+            setError(null); 
+        } else if (user && supabase) {
+            loadUsage();
+        }
+    }, [isOpen, user]);
+
+    const loadUsage = async () => {
+        if(!user || !supabase) return;
+        setLoadingUsage(true);
+        // Fetch profile
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('audit_count')
+            .eq('id', user.id)
+            .single();
+        
+        if(data) setAuditCount(data.audit_count);
+        // If error (profile missing), we assume 0 (it will be created by trigger usually)
+        setLoadingUsage(false);
+    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -145,7 +178,13 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
     };
 
     const runAnalysis = async () => {
-        if (!file || !user) return;
+        if (!file || !user || !supabase) return;
+
+        // 🛑 1. CHECK LIMIT
+        if (auditCount >= FREE_LIMIT) {
+            return; // UI handles the display, we just stop logic here
+        }
+
         setAnalyzing(true);
         setError(null);
 
@@ -176,6 +215,11 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
             if (!json.candidates?.[0]?.content?.parts?.[0]?.text) throw new Error("No analysis returned");
 
             setResult(json.candidates[0].content.parts[0].text);
+            
+            // ✅ 2. INCREMENT COUNT ON SUCCESS
+            const newCount = auditCount + 1;
+            setAuditCount(newCount);
+            await supabase.from('profiles').update({ audit_count: newCount }).eq('id', user.id);
 
         } catch (err: any) {
             setError(err.message);
@@ -194,6 +238,10 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
             .replace(/\n/g, '<br>');
     };
 
+    // 🎨 UI HELPERS
+    const isLimitReached = auditCount >= FREE_LIMIT;
+    const remaining = Math.max(0, FREE_LIMIT - auditCount);
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -201,6 +249,8 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150]" />
                     <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="fixed inset-0 z-[151] flex items-center justify-center p-4 pointer-events-none">
                         <div className="bg-[#111] border border-[#333] w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto">
+                            
+                            {/* Header */}
                             <div className="p-5 border-b border-[#222] flex justify-between items-center bg-[#161616]">
                                 <h2 className="text-xl font-bold flex items-center gap-2">
                                     <span className="bg-gradient-to-r from-[#FF0050] to-[#00F2EA] bg-clip-text text-transparent">ViralAudit AI</span>
@@ -208,7 +258,7 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                                 <button onClick={onClose} className="text-gray-500 hover:text-white"><i className="fa-solid fa-xmark text-xl"></i></button>
                             </div>
 
-                            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar relative">
                                 {!user ? (
                                     <div className="text-center py-10">
                                         <div className="w-16 h-16 rounded-full bg-[#1a1a1a] flex items-center justify-center border border-[#333] mb-4 mx-auto">
@@ -218,39 +268,71 @@ const ViralAuditTool = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => v
                                         <p className="text-gray-400 mb-6">You must be logged in to use the Deep Audit tool.</p>
                                         <button onClick={() => { onClose(); setShowAuthModal(true); setAuthView('login'); }} className="bg-white text-black font-bold px-6 py-3 rounded-lg hover:bg-gray-200">Log In / Sign Up</button>
                                     </div>
-                                ) : !result ? (
-                                    <div className="text-center">
-                                        <div 
-                                            onClick={() => document.getElementById('app-file-upload')?.click()}
-                                            className={`border-2 border-dashed rounded-xl p-10 cursor-pointer transition-all ${file ? 'border-[#00F2EA] bg-[#00F2EA]/5' : 'border-[#333] hover:border-gray-500 hover:bg-[#1a1a1a]'}`}
-                                        >
-                                            <input type="file" id="app-file-upload" className="hidden" accept="video/mp4,video/quicktime,video/webm" onChange={handleFileChange} />
-                                            <i className={`fa-solid ${file ? 'fa-check-circle text-[#00F2EA]' : 'fa-cloud-arrow-up text-gray-500'} text-4xl mb-4`}></i>
-                                            <h4 className="text-white font-medium text-lg">{file ? file.name : "Upload Video Ad"}</h4>
-                                            <p className="text-sm text-gray-500 mt-2">{file ? "Ready to analyze" : "MP4, MOV or WEBM (Max 20MB)"}</p>
-                                        </div>
-
-                                        {error && <p className="text-[#FF0050] text-sm mt-4 bg-[#FF0050]/10 p-3 rounded">{error}</p>}
-
-                                        <button 
-                                            onClick={runAnalysis} 
-                                            disabled={!file || analyzing}
-                                            className="w-full mt-6 bg-gradient-to-r from-[#FF0050] to-[#00F2EA] text-white font-bold py-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                        >
-                                            {analyzing ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Analyzing...</> : "Run Deep Audit"}
-                                        </button>
-                                    </div>
                                 ) : (
-                                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-white font-bold text-lg">Analysis Report</h3>
-                                            <button onClick={() => setResult(null)} className="text-xs text-gray-500 hover:text-white underline">Audit Another</button>
-                                        </div>
-                                        <div 
-                                            className="prose prose-invert max-w-none text-sm text-gray-300 leading-relaxed"
-                                            dangerouslySetInnerHTML={{ __html: formatText(result) }}
-                                        />
-                                    </div>
+                                    <>
+                                        {/* USAGE BAR */}
+                                        {!result && (
+                                            <div className="mb-6 flex items-center justify-between bg-[#1a1a1a] p-3 rounded-lg border border-[#333]">
+                                                <div className="text-sm text-gray-400">
+                                                    Free Audits: <span className={remaining === 0 ? "text-red-500 font-bold" : "text-white font-bold"}>{remaining}</span> / {FREE_LIMIT} left
+                                                </div>
+                                                {remaining === 0 && (
+                                                    <button onClick={triggerUpgrade} className="text-xs bg-[#FF0050] text-white px-3 py-1 rounded font-bold hover:bg-red-600 transition-colors">
+                                                        UPGRADE
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* LIMIT REACHED STATE */}
+                                        {isLimitReached && !result ? (
+                                             <div className="text-center py-8">
+                                                <div className="w-16 h-16 rounded-full bg-red-900/20 flex items-center justify-center border border-red-500/30 mb-4 mx-auto">
+                                                    <i className="fa-solid fa-ban text-2xl text-red-500"></i>
+                                                </div>
+                                                <h3 className="text-xl font-bold text-white mb-2">Free Limit Reached</h3>
+                                                <p className="text-gray-400 mb-6 max-w-sm mx-auto">You've used all 3 free audits. Upgrade to Pro for unlimited access and deep analysis.</p>
+                                                <button onClick={triggerUpgrade} className="bg-white text-black font-bold px-8 py-3 rounded-lg hover:bg-gray-200 w-full sm:w-auto">
+                                                    View Plans
+                                                </button>
+                                            </div>
+                                        ) : !result ? (
+                                            // UPLOAD STATE
+                                            <div className="text-center">
+                                                <div 
+                                                    onClick={() => document.getElementById('app-file-upload')?.click()}
+                                                    className={`border-2 border-dashed rounded-xl p-10 cursor-pointer transition-all ${file ? 'border-[#00F2EA] bg-[#00F2EA]/5' : 'border-[#333] hover:border-gray-500 hover:bg-[#1a1a1a]'}`}
+                                                >
+                                                    <input type="file" id="app-file-upload" className="hidden" accept="video/mp4,video/quicktime,video/webm" onChange={handleFileChange} />
+                                                    <i className={`fa-solid ${file ? 'fa-check-circle text-[#00F2EA]' : 'fa-cloud-arrow-up text-gray-500'} text-4xl mb-4`}></i>
+                                                    <h4 className="text-white font-medium text-lg">{file ? file.name : "Upload Video Ad"}</h4>
+                                                    <p className="text-sm text-gray-500 mt-2">{file ? "Ready to analyze" : "MP4, MOV or WEBM (Max 20MB)"}</p>
+                                                </div>
+
+                                                {error && <p className="text-[#FF0050] text-sm mt-4 bg-[#FF0050]/10 p-3 rounded">{error}</p>}
+
+                                                <button 
+                                                    onClick={runAnalysis} 
+                                                    disabled={!file || analyzing || loadingUsage}
+                                                    className="w-full mt-6 bg-gradient-to-r from-[#FF0050] to-[#00F2EA] text-white font-bold py-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                >
+                                                    {analyzing ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Analyzing...</> : "Run Deep Audit"}
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            // RESULTS VIEW
+                                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h3 className="text-white font-bold text-lg">Analysis Report</h3>
+                                                    <button onClick={() => setResult(null)} className="text-xs text-gray-500 hover:text-white underline">Audit Another</button>
+                                                </div>
+                                                <div 
+                                                    className="prose prose-invert max-w-none text-sm text-gray-300 leading-relaxed"
+                                                    dangerouslySetInnerHTML={{ __html: formatText(result) }}
+                                                />
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>
