@@ -6,8 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 // ⚙️ CONFIGURATION (FILL THESE IN)
 // ==========================================
 const WORKER_URL = "https://damp-wind-775f.rusdumitru122.workers.dev/"; 
-const SUPABASE_URL = "YOUR_SUPABASE_URL_HERE"; 
-const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY_HERE";
+const SUPABASE_URL = "https://wrlbnzuexpbtnxbitnyx.supabase.co"; 
+const SUPABASE_KEY = "sb_publishable_yxPU4bu3VtlGFmeyAKUjpQ_IcX8ZODV";
 
 // TypeScript Hack for CDN Supabase
 declare global {
