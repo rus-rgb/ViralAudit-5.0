@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 // ==========================================
 // ⚙️ CONFIGURATION (FILL THESE IN)
 // ==========================================
-const WORKER_URL = "https://damp-wind-775f.rusdumitru122.workers.dev/"; // Your Cloudflare Worker
+const WORKER_URL = "https://damp-wind-775f.rusdumitru122.workers.dev/"; 
 const SUPABASE_URL = "YOUR_SUPABASE_URL_HERE"; 
 const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY_HERE";
 
@@ -48,7 +48,7 @@ interface AuthContextType {
     setShowAuthModal: (show: boolean) => void;
     authView: 'login' | 'signup';
     setAuthView: (view: 'login' | 'signup') => void;
-    openTool: () => void; // Shortcut to open the tool directly
+    openTool: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -57,7 +57,7 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [showAuthModal, setShowAuthModal] = useState(false);
-    const [showToolModal, setShowToolModal] = useState(false); // New state for the tool
+    const [showToolModal, setShowToolModal] = useState(false);
     const [authView, setAuthView] = useState<'login' | 'signup'>('signup');
 
     useEffect(() => {
@@ -377,6 +377,136 @@ const Navbar = () => {
 };
 
 const Background = () => {
+    // We define this here to prevent build errors with long strings in the return statement
+    const noiseSvg = "data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E";
+
     return (
         <div className="fixed inset-0 z-0 pointer-events-none">
-            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 20
+            <div 
+                className="absolute inset-0 opacity-[0.03]" 
+                style={{ backgroundImage: `url("${noiseSvg}")` }}
+            ></div>
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
+            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-900/20 blur-[120px] rounded-full"></div>
+            <div className="absolute top-[20%] right-[-10%] w-[600px] h-[600px] bg-blue-900/10 blur-[120px] rounded-full"></div>
+        </div>
+    )
+}
+
+const Hero = () => {
+  const { openTool } = useAuth();
+
+  return (
+    <section className="relative pt-32 pb-12 px-6 md:pt-48 md:pb-24 overflow-hidden">
+      <div className="max-w-7xl mx-auto text-center mb-10 relative z-10">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs font-medium text-gray-300 mb-8 backdrop-blur-sm">
+            <span className="bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">NEW</span>
+            <span className="text-gray-300">AI Ad Audits are live</span>
+        </motion.div>
+        <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-5xl md:text-7xl font-bold font-heading tracking-tight mb-6 leading-[1.1]">
+          Stop Guessing.<br/>Audit Your Ads Instantly.
+        </motion.h1>
+        <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+          Upload your video creative and let our AI analyze your hooks, pacing, and copy for viral potential.
+        </motion.p>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex flex-col sm:flex-row justify-center gap-4">
+            <button onClick={openTool} className="bg-white text-black px-8 py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                Launch Audit Tool
+            </button>
+        </motion.div>
+      </div>
+    </section>
+  );
+};
+
+const FeatureCard = ({ icon, title, desc, delay }: any) => (
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay }} whileHover={{ y: -5 }} className="p-8 rounded-2xl bg-[#0a0a0a]/80 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-colors group">
+        <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center mb-6 text-xl group-hover:bg-white group-hover:text-black transition-all duration-300"><i className={icon}></i></div>
+        <h3 className="text-xl font-bold mb-3 font-heading">{title}</h3>
+        <p className="text-gray-400 leading-relaxed text-sm">{desc}</p>
+    </motion.div>
+);
+
+const Features = () => {
+    return (
+        <section id="features" className="py-24 relative z-10 scroll-mt-24">
+            <div className="max-w-6xl mx-auto px-6">
+                <div className="grid md:grid-cols-3 gap-6">
+                    <FeatureCard icon="fa-solid fa-list-check" title="Frame-by-Frame Audit" desc="Detailed breakdown of your hook, body, and CTA." delay={0.1} />
+                    <FeatureCard icon="fa-solid fa-wand-magic-sparkles" title="Actionable Fixes" desc="Don't just get a score. Get a 'Fix List' to improve ROAS." delay={0.2} />
+                    <FeatureCard icon="fa-solid fa-shield-halved" title="Secure & Private" desc="Your creatives are analyzed and discarded. We don't train on your data." delay={0.3} />
+                </div>
+            </div>
+        </section>
+    );
+};
+
+const Pricing = () => {
+    return (
+        <section id="pricing" className="py-24 border-t border-white/5 relative z-10 scroll-mt-24">
+            <div className="max-w-5xl mx-auto px-6 text-center">
+                <h2 className="text-3xl font-bold font-heading mb-6">Simple Pricing</h2>
+                <div className="inline-block p-8 rounded-2xl border border-white/10 bg-[#0a0a0a]">
+                    <h3 className="text-2xl font-bold">Free Beta</h3>
+                    <p className="text-gray-400 mt-2">Unlimited audits while we are in open beta.</p>
+                </div>
+            </div>
+        </section>
+    );
+};
+
+const FloatingActionButton = () => {
+    const { openTool } = useAuth();
+    return (
+        <motion.div 
+            initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1, type: "spring" }}
+            className="fixed bottom-8 right-8 z-40"
+        >
+            <button 
+                onClick={openTool}
+                className="flex items-center gap-2 px-6 py-4 bg-white text-black font-bold rounded-full shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-105 transition-transform"
+            >
+                <i className="fa-solid fa-robot text-[#00F2EA]"></i>
+                <span>Audit Ad</span>
+            </button>
+        </motion.div>
+    );
+}
+
+const Footer = () => (
+    <footer className="py-12 border-t border-white/5 bg-[#050505] text-xs text-gray-600 relative z-10">
+        <div className="max-w-6xl mx-auto px-6 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+                 <div className="w-6 h-6 bg-white/10 rounded flex items-center justify-center"><i className="fa-solid fa-bolt text-gray-400 text-[10px]"></i></div>
+                 <span className="font-bold text-gray-400">ViralAudit</span>
+            </div>
+            <div>&copy; 2025 ViralAudit Inc.</div>
+        </div>
+    </footer>
+);
+
+const App = () => {
+  return (
+    <AuthProvider>
+        <div className="min-h-screen bg-black text-white selection:bg-pink-500/30 selection:text-white overflow-hidden">
+            <Background />
+            <Navbar />
+            <Hero />
+            <Features />
+            <Pricing />
+            <Footer />
+            <FloatingActionButton />
+            <AuthModal /> 
+            {/* Note: The ViralAuditTool modal is rendered inside AuthProvider to access context */}
+        </div>
+    </AuthProvider>
+  );
+};
+
+const container = document.getElementById("root");
+if (container) {
+    const root = createRoot(container);
+    root.render(<App />);
+}
+
+export default App;
