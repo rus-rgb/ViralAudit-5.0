@@ -6,14 +6,14 @@ import { createClient } from "@supabase/supabase-js";
 // ==========================================
 // ⚙️ CONFIGURATION
 // ==========================================
-// Your Cloudflare Worker URL
+// Cloudflare Worker
 const WORKER_URL = "https://damp-wind-775f.rusdumitru122.workers.dev/"; 
 
 // Supabase Keys (Pulled from Vercel via vite.config.ts)
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.SUPABASE_KEY || "";
 
-// Initialize Supabase Client
+// Initialize Supabase
 const supabase = (SUPABASE_URL && SUPABASE_KEY) 
     ? createClient(SUPABASE_URL, SUPABASE_KEY) 
     : null;
@@ -88,14 +88,14 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     const login = async (email: string, password: string) => {
-        if(!supabase) return { error: { message: "Supabase not configured in Vercel" } };
+        if(!supabase) return { error: { message: "Supabase not configured" } };
         const result = await supabase.auth.signInWithPassword({ email, password });
         if (!result.error) setShowAuthModal(false);
         return result;
     };
 
     const signup = async (email: string, password: string) => {
-        if(!supabase) return { error: { message: "Supabase not configured in Vercel" } };
+        if(!supabase) return { error: { message: "Supabase not configured" } };
         const result = await supabase.auth.signUp({ email, password });
         if (!result.error) setShowAuthModal(false);
         return result;
@@ -430,14 +430,114 @@ const Features = () => {
     );
 };
 
+// ==========================================
+// 💲 PRICING COMPONENTS
+// ==========================================
+
+const PricingCard = ({ plan, price, description, features, isPro, delay }: any) => {
+    const { user, setShowAuthModal, setAuthView } = useAuth();
+    
+    const handleAction = () => {
+        if (user) {
+            // Placeholder: In a real app, this would redirect to checkout
+            alert("You are logged in! Redirecting to checkout...");
+        } else {
+            setAuthView('signup');
+            setShowAuthModal(true);
+        }
+    };
+
+    return (
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay }}
+            className={`relative p-8 rounded-2xl border flex flex-col h-full ${isPro ? 'bg-[#0f0f0f]/90 backdrop-blur-md border-white/30 shadow-[0_0_30px_rgba(255,255,255,0.05)]' : 'bg-[#0a0a0a]/80 backdrop-blur-sm border-white/10'}`}
+        >
+            {isPro && (
+                <div className="absolute top-0 right-0 bg-white text-black text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl">
+                    RECOMMENDED
+                </div>
+            )}
+            <div className="mb-8">
+                <h3 className="text-lg font-bold font-heading mb-2">{plan}</h3>
+                <div className="flex items-baseline gap-1 mb-4">
+                    <span className="text-4xl font-bold">{price}</span>
+                    <span className="text-sm text-gray-500">/mo</span>
+                </div>
+                <p className="text-sm text-gray-400">{description}</p>
+            </div>
+            
+            <ul className="space-y-4 mb-8 flex-1">
+                {features.map((feature: any, i: number) => (
+                    <li key={i} className={`flex items-center gap-3 text-sm ${feature.included ? 'text-gray-200' : 'text-gray-600'}`}>
+                        <i className={`fa-solid ${feature.included ? 'fa-check text-emerald-500' : 'fa-xmark text-gray-700'}`}></i>
+                        {feature.text}
+                    </li>
+                ))}
+            </ul>
+
+            <button 
+                onClick={handleAction}
+                className={`block w-full text-center py-4 rounded-xl font-bold text-sm transition-all ${
+                isPro 
+                ? 'bg-white text-black hover:bg-gray-200 hover:scale-[1.02]' 
+                : 'border border-white/20 text-white hover:bg-white/5'
+            }`}>
+                {isPro ? 'Start Pro Trial' : 'Get Started'}
+            </button>
+        </motion.div>
+    );
+};
+
 const Pricing = () => {
     return (
         <section id="pricing" className="py-24 border-t border-white/5 relative z-10 scroll-mt-24">
-            <div className="max-w-5xl mx-auto px-6 text-center">
-                <h2 className="text-3xl font-bold font-heading mb-6">Simple Pricing</h2>
-                <div className="inline-block p-8 rounded-2xl border border-white/10 bg-[#0a0a0a]">
-                    <h3 className="text-2xl font-bold">Free Beta</h3>
-                    <p className="text-gray-400 mt-2">Unlimited audits while we are in open beta.</p>
+            <div className="max-w-5xl mx-auto px-6">
+                <div className="text-center mb-16">
+                    <h2 className="text-3xl md:text-5xl font-bold font-heading mb-6">Pay for performance.</h2>
+                    <p className="text-gray-400">Simple pricing that scales with your ad spend.</p>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+                    <PricingCard 
+                        plan="Starter"
+                        price="£29"
+                        description="For solo media buyers testing waters."
+                        delay={0.1}
+                        isPro={false}
+                        features={[
+                            { text: "50 Video Audits / Month", included: true },
+                            { text: "Deep Think Analysis", included: true },
+                            { text: "Detailed Fix Reports", included: true },
+                            { text: "Viral Script Rewrites", included: false },
+                            { text: "Policy Violation Check", included: false },
+                            { text: "Competitor Benchmarking", included: false },
+                        ]}
+                    />
+                    <PricingCard 
+                        plan="Professional"
+                        price="£49"
+                        description="For agencies and scaling brands."
+                        delay={0.2}
+                        isPro={true}
+                        features={[
+                            { text: "500 Video Audits / Month", included: true },
+                            { text: "Deep Think Analysis", included: true },
+                            { text: "Detailed Fix Reports", included: true },
+                            { text: "Viral Script Rewrites", included: true },
+                            { text: "Policy Violation Check", included: true },
+                            { text: "Competitor Benchmarking", included: true },
+                        ]}
+                    />
+                </div>
+                
+                <div className="mt-12 text-center">
+                    <p className="text-sm text-gray-500 flex items-center justify-center gap-2">
+                        <i className="fa-solid fa-lock text-xs"></i> 
+                        Secure payment processing via Lemon Squeezy. Cancel anytime.
+                    </p>
                 </div>
             </div>
         </section>
